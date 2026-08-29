@@ -1,0 +1,38 @@
+# Render deploy config
+# Создаёт Web Service + Postgres. Django БД = DATABASE_URL (авто от Render).
+# dvdrental (учебная БД для задач) создаётся в том же инстансе Postgres
+# через build-команду (CREATE DATABASE dvdrental + заливка дампа).
+
+services:
+  - type: web
+    name: backend-practice
+    runtime: python
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13"
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: backend-practice-db
+          property: connectionString
+      - key: DVDRENTAL_DATABASE_URL
+        fromDatabase:
+          name: backend-practice-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        sync: false
+
+databases:
+  - name: backend-practice-db
+    databaseName: ustudy_practice
+    plan: free
+    region: frankfurt

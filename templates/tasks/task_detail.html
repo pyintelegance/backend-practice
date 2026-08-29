@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load level_tags %}
+
+{% block title %}{{ task.title }} — uStudy Practice{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+    <a class="btn btn-ghost" href="{% url 'catalog' %}">← Назад к задачам</a>
+</div>
+<nav class="crumbs" style="margin-bottom:16px;font-size:13.5px;color:var(--text-muted);">
+    <a href="{% url 'catalog' %}">Задачи</a>
+    <span> / </span>
+    <a href="{% url 'catalog' %}#">{{ task.topic.name }}</a>
+    <span> / </span>
+    <span>{{ task.title }}</span>
+</nav>
+
+<div class="card card-pad" style="margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+        <h1 class="page-title" style="margin:0;">{{ task.title }}</h1>
+        <div style="display:flex;gap:8px;">
+            <span class="badge badge-{{ task.difficulty }}">{{ task.get_difficulty_display }}</span>
+            {% if solved %}
+                <span class="badge badge-solved">Решено</span>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="task-layout">
+    <div class="task-panel">
+        <div class="card card-pad">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <h3 style="font-size:15px;">Условие</h3>
+                <span class="badge badge-reward">+{{ task.reward }} монет</span>
+            </div>
+            <div class="task-desc">{{ task.description }}</div>
+            {% if task.tables %}
+                <div class="task-tables">
+                    <span class="task-tables-label">Таблицы:</span>
+                    {% for t in task.tables|split:"," %}
+                        <code class="table-chip">{{ t|trim }}</code>
+                    {% endfor %}
+                </div>
+            {% endif %}
+            {% if task.example %}
+                <h4 style="font-size:13px;margin:16px 0 8px;color:var(--text-muted);">Ожидаемый результат</h4>
+                <pre class="task-example">{{ task.example }}</pre>
+            {% endif %}
+        </div>
+
+        {% if task.hint %}
+            <div class="card card-pad">
+                <h3 style="font-size:15px;margin-bottom:10px;">Подсказка</h3>
+                {% if user.is_authenticated %}
+                    {% if hint_purchased %}
+                        <div class="task-desc">{{ task.hint }}</div>
+                    {% else %}
+                        <p style="color:var(--text-muted);font-size:14px;">
+                            Подсказка скрыта. Купи её за <strong>{{ task.hint_price }} монет</strong>.
+                        </p>
+                        <form method="post" action="{% url 'buy_hint' task.slug %}" style="margin-top:12px;">
+                            {% csrf_token %}
+                            <button class="btn btn-outline" type="submit">Купить подсказку — {{ task.hint_price }} монет</button>
+                        </form>
+                    {% endif %}
+                {% else %}
+                    <p style="color:var(--text-muted);font-size:14px;">Войди, чтобы купить подсказку.</p>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="task-panel">
+        {% if locked %}
+            <div class="card card-pad">
+                <h3 style="font-size:15px;margin-bottom:8px;">🔒 Задача закрыта</h3>
+                <p style="color:var(--text-muted);">
+                    Для этой задачи нужен уровень <strong>{{ required_level.icon }} {{ required_level.name }}</strong>.
+                    Твой уровень — {{ user_level.icon }} {{ user_level.name }}.
+                </p>
+                <p style="color:var(--text-muted);font-size:14px;margin-top:8px;">
+                    Решай задачи своего уровня или пройди <strong>тест уровня</strong> (🏁), чтобы перейти на следующий.
+                </p>
+                <a class="btn btn-primary" href="{% url 'catalog' %}" style="margin-top:14px;">К каталогу</a>
+            </div>
+        {% elif user.is_authenticated %}
+            {% if feedback %}
+                <div class="alert {% if passed %}alert-success{% else %}alert-error{% endif %}" style="white-space:pre-wrap;">
+                    {{ feedback }}
+                    {% if elapsed %}<span style="opacity:.7"> · {{ elapsed }} сек</span>{% endif %}
+                </div>
+            {% endif %}
+            <div class="card card-pad">
+                <div class="form-group">
+                    <label for="code">Решение {% if task.task_type == 'sql' %}— SQL-запрос{% else %}— Python-код{% endif %}</label>
+                    <textarea id="code" name="code" class="code-editor" placeholder="{% if task.task_type == 'sql' %}SELECT ...{% else %}def solve():&#10;    ...{% endif %}">{{ last_code }}</textarea>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:14px;">
+                    <button class="btn btn-outline" type="button" id="btn-debug">🐞 Проверить</button>
+                    <button class="btn btn-primary" type="submit" form="submit-form">Отправить</button>
+                </div>
+            </div>
+
+            <form method="post" action="{% url 'submit_solution' task.slug %}" id="submit-form" style="display:none;">
+                {% csrf_token %}
+                <input type="hidden" name="code" id="code-hidden">
+            </form>
+
+            <div class="card card-pad debug-panel" id="debug-panel" style="display:none;">
+                <h3 style="font-size:15px;margin-bottom:10px;">🐞 Дебаггер</h3>
+                <div id="debug-output" style="white-space:pre-wrap;font-family:'Consolas',monospace;font-size:13.5px;"></div>
+            </div>
+        {% else %}
+            <div class="card card-pad">
+                <p style="color:var(--text-muted);">Войди в аккаунт, чтобы отправлять решения.</p>
+                <a class="btn btn-primary" href="{% url 'login' %}">Войти</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal-overlay" id="leave-modal" style="display:none;">
+    <div class="modal-box">
+        <h3 style="font-size:17px;margin-bottom:8px;">⚠️ Ты собираешься уйти</h3>
+        <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">
+            Если ты выйдешь отсюда, написанный код будет потерян. Продолжить?
+        </p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-outline" id="leave-cancel">Остаться</button>
+            <button class="btn btn-primary" id="leave-confirm">Уйти</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="submit-modal" style="display:none;">
+    <div class="modal-box">
+        <h3 style="font-size:17px;margin-bottom:8px;">📨 Отправить решение?</h3>
+        <p style="color:var(--text-muted);font-size:14px;margin-bottom:16px;">
+            Ты уверен, что хочешь отправить этот код на проверку?
+        </p>
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button class="btn btn-outline" id="submit-cancel">Отмена</button>
+            <button class="btn btn-primary" id="submit-confirm">Отправить</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="{% static 'vendor/codemirror/lib/codemirror.min.css' %}">
+<link rel="stylesheet" href="{% static 'vendor/codemirror/addon/hint/show-hint.min.css' %}">
+<link rel="stylesheet" href="{% static 'vendor/codemirror/theme/material.min.css' %}">
+<script src="{% static 'vendor/codemirror/lib/codemirror.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/mode/python/python.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/mode/sql/sql.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/show-hint.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/sql-hint.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/python-keywords-hint.js' %}"></script>
+<script>
+    (function () {
+        const textarea = document.getElementById('code');
+        if (!textarea) return; // задача заблокирована — редактор не нужен
+        const isSql = '{{ task.task_type }}' === 'sql';
+        const mode = isSql ? 'text/x-sql' : 'text/x-python';
+        const lastCode = '{{ last_code|escapejs }}';
+
+        const editor = CodeMirror.fromTextArea(textarea, {
+            mode: mode,
+            lineNumbers: true,
+            lineWrapping: true,
+            indentUnit: 4,
+            tabSize: 4,
+            theme: 'material',
+            extraKeys: {
+                'Ctrl-Space': 'autocomplete',
+                Tab: function (cm) { cm.replaceSelection('    '); }
+            }
+        });
+        editor.setSize('100%', 360);
+        if (lastCode) editor.setValue(lastCode);
+
+        // Автодополнение при вводе (как в IDE)
+        editor.on('inputRead', function (cm, change) {
+            if (change.text[0] && /[A-Za-z_]$/.test(change.text[0])) {
+                cm.showHint({ completeSingle: false });
+            }
+        });
+
+        // Синхронизация перед отправкой формы (код идёт в скрытое поле)
+        const form = document.getElementById('submit-form');
+        const codeHidden = document.getElementById('code-hidden');
+        const hasUnsaved = function () { return editor.getValue().trim().length > 0; };
+        form.addEventListener('submit', function () {
+            codeHidden.value = editor.getValue();
+        });
+
+        // Дебаггер: проверка через AJAX, без сохранения
+        const debugPanel = document.getElementById('debug-panel');
+        const debugOutput = document.getElementById('debug-output');
+        const btnDebug = document.getElementById('btn-debug');
+        btnDebug.addEventListener('click', function () {
+            const code = editor.getValue();
+            if (!code.trim()) {
+                debugOutput.innerHTML = '<span style="color:#f87171;">Код пустой. Напиши что-нибудь.</span>';
+                debugPanel.style.display = 'block';
+                return;
+            }
+            const url = window.location.pathname.replace(/\/$/, '') + '/debug/';
+            const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            btnDebug.disabled = true;
+            btnDebug.textContent = 'Проверяю...';
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrf,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'code=' + encodeURIComponent(code)
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    debugOutput.innerHTML = '<span style="color:#f87171;">' + data.error + '</span>';
+                } else {
+                    const cls = data.passed ? '#4ade80' : '#f87171';
+                    const status = data.passed ? '✅ ПРАВИЛЬНО' : '❌ ОШИБКА';
+                    let html = '<div style="margin-bottom:8px;"><span style="color:' + cls + ';font-weight:700;font-size:15px;">' + status + '</span>' +
+                        ' <span style="color:var(--text-muted);font-size:12px;">· ' + data.elapsed + ' сек</span></div>';
+                    if (data.result) {
+                        if (data.result.student) {
+                            html += '<div class="dbg-block"><div class="dbg-label">Твой результат</div><pre class="dbg-code">' +
+                                data.result.student.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</pre></div>';
+                        }
+                        if (data.result.expected) {
+                            html += '<div class="dbg-block"><div class="dbg-label">Ожидаемый результат</div><pre class="dbg-code">' +
+                                data.result.expected.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</pre></div>';
+                        }
+                    }
+                    html += '<div style="margin-top:10px;">' + data.feedback.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>') + '</div>';
+                    debugOutput.innerHTML = html;
+                }
+                debugPanel.style.display = 'block';
+                btnDebug.disabled = false;
+                btnDebug.textContent = '🐞 Проверить';
+            })
+            .catch(function () {
+                debugOutput.innerHTML = '<span style="color:#f87171;">Ошибка соединения. Попробуй ещё раз.</span>';
+                debugPanel.style.display = 'block';
+                btnDebug.disabled = false;
+                btnDebug.textContent = '🐞 Проверить';
+            });
+        });
+
+        // Модалка подтверждения выхода (если есть несохранённый код)
+        const modal = document.getElementById('leave-modal');
+        let pendingUrl = null;
+
+        function askLeave(url) {
+            if (!hasUnsaved()) { window.location.href = url; return; }
+            pendingUrl = url;
+            modal.style.display = 'flex';
+        }
+
+        document.getElementById('leave-cancel').addEventListener('click', function () {
+            modal.style.display = 'none';
+            pendingUrl = null;
+        });
+        document.getElementById('leave-confirm').addEventListener('click', function () {
+            window.location.href = pendingUrl;
+        });
+
+        // Перехват навигации по ссылкам внутри страницы
+        document.querySelectorAll('a[href]').forEach(function (a) {
+            a.addEventListener('click', function (e) {
+                const href = a.getAttribute('href');
+                if (!href || href.startsWith('http') || href.startsWith('#')) return;
+                if (hasUnsaved()) {
+                    e.preventDefault();
+                    askLeave(href);
+                }
+            });
+        });
+
+        // Клик по фону модалки — закрыть
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal) { modal.style.display = 'none'; pendingUrl = null; }
+        });
+
+        // Модалка подтверждения отправки
+        const submitModal = document.getElementById('submit-modal');
+        const submitBtn = document.querySelector('button[form="submit-form"]');
+
+        submitBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            codeHidden.value = editor.getValue();
+            if (!editor.getValue().trim()) {
+                return;
+            }
+            submitModal.style.display = 'flex';
+        });
+
+        document.getElementById('submit-cancel').addEventListener('click', function () {
+            submitModal.style.display = 'none';
+        });
+        document.getElementById('submit-confirm').addEventListener('click', function () {
+            submitModal.style.display = 'none';
+            form.submit();
+        });
+        submitModal.addEventListener('click', function (e) {
+            if (e.target === submitModal) { submitModal.style.display = 'none'; }
+        });
+    })();
+</script>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Мой профиль — uStudy Practice{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{{ profile.full_name|default:user.username }}</h1>
+<p class="page-sub">{{ user.email|default:'' }}</p>
+
+<div class="stat-grid">
+    <div class="card stat">
+        <div class="stat-value">{{ profile.points }}</div>
+        <div class="stat-label">Очки</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-value">{{ profile.coins }} 🪙</div>
+        <div class="stat-label">Монеты</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-value">{{ solved }}</div>
+        <div class="stat-label">Решено задач</div>
+    </div>
+    <div class="card stat">
+        <div class="stat-value">{{ submissions|length }}</div>
+        <div class="stat-label">Всего попыток</div>
+    </div>
+</div>
+
+<div class="card card-pad" style="margin-bottom:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+            <div style="font-size:13px;color:var(--text-muted);">Текущий уровень</div>
+            <div style="font-size:20px;font-weight:700;">{{ level.icon }} {{ level.name }}</div>
+            {% if next_level %}
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    До уровня «{{ next_level.name }}»: {{ next_level.points }} очков
+                </div>
+            {% else %}
+                <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">Максимальный уровень 🏆</div>
+            {% endif %}
+        </div>
+        <div style="width:220px;">
+            <div class="progress">
+                <div class="progress-bar" style="width: {{ level_progress }}%;"></div>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;text-align:center;">{{ level_progress }}%</div>
+        </div>
+    </div>
+    {% if next_level %}
+    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:12px;">⬆️ Повышение уровня до «{{ next_level.name }}»</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+
+            {% if level_test %}
+                <div class="level-up-row">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:14px;">🏁 Skill-тест (бесплатно)</div>
+                        <div style="font-size:13px;color:var(--text-muted);">
+                            Самая сложная задача твоего уровня — «{{ level_test.title }}»
+                        </div>
+                    </div>
+                    {% if level_test_done %}
+                        <span class="badge badge-solved">✅ Пройден</span>
+                    {% else %}
+                        <a class="btn btn-outline btn-sm" href="{% url 'task_detail' level_test.slug %}">Пройти тест</a>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="level-up-row">
+                    <div style="flex:1;">
+                        <div style="font-weight:600;font-size:14px;">🏁 Skill-тест (бесплатно)</div>
+                        <div style="font-size:13px;color:var(--text-muted);">
+                            Тест уровня {{ user_lvl_num }} ещё не добавлен
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="level-up-row">
+                <div style="flex:1;">
+                    <div style="font-weight:600;font-size:14px;">🪙 За монеты</div>
+                    <div style="font-size:13px;color:var(--text-muted);">
+                        Сразу перейти на следующий уровень за {{ jump_price }} монет
+                    </div>
+                </div>
+                <form method="post" action="{% url 'jump_level' %}">
+                    {% csrf_token %}
+                    <button class="btn btn-outline btn-sm" type="submit" {% if profile.coins < jump_price %}disabled{% endif %}>
+                        Перепрыгнуть — {{ jump_price }} 🪙
+                    </button>
+                    {% if profile.coins < jump_price %}
+                        <span style="font-size:12px;color:var(--text-muted);display:block;margin-top:4px;">Не хватает монет</span>
+                    {% endif %}
+                </form>
+            </div>
+
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<h3 style="font-size:16px;margin-bottom:12px;">Последние попытки</h3>
+<div class="card card-pad">
+    {% if submissions %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Задача</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in submissions %}
+                    <tr>
+                        <td><a href="{% url 'task_detail' s.task.slug %}">{{ s.task.title }}</a></td>
+                        <td><span class="badge badge-{{ s.status }}">{{ s.get_status_display }}</span></td>
+                        <td>{{ s.submitted_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color:var(--text-muted);">Пока нет попыток. <a href="{% url 'catalog' %}">Реши первую задачу</a></p>
+    {% endif %}
+</div>
+{% endblock %}

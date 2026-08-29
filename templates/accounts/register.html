@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block title %}Регистрация — uStudy Practice{% endblock %}
+
+{% block content %}
+<div class="auth-wrap">
+    <div class="card">
+        <h1 class="auth-title">Создать аккаунт</h1>
+        <p class="auth-sub">Начни решать задачи по backend</p>
+
+        {% if form.errors %}
+            <div class="form-errors">
+                {% if form.non_field_errors %}
+                    {% for err in form.non_field_errors %}
+                        <div class="err-item">{{ err }}</div>
+                    {% endfor %}
+                {% endif %}
+                {% for field in form %}
+                    {% for err in field.errors %}
+                        <div class="err-item">
+                            <strong>{{ field.label }}:</strong> {{ err }}
+                        </div>
+                    {% endfor %}
+                {% endfor %}
+                {% if not form.non_field_errors %}
+                    <div class="err-item">Проверь выделенные поля выше.</div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="form-field">
+                <label for="id_username">Имя пользователя</label>
+                {{ form.username }}
+                <span class="helptext">{{ form.username.help_text }}</span>
+            </div>
+            <div class="form-field">
+                <label for="id_password1">Пароль</label>
+                {{ form.password1 }}
+                <span class="helptext">{{ form.password1.help_text }}</span>
+            </div>
+            <div class="form-field">
+                <label for="id_password2">Подтверждение пароля</label>
+                {{ form.password2 }}
+                <span class="helptext">{{ form.password2.help_text }}</span>
+            </div>
+            <button class="btn btn-primary btn-block" type="submit">Зарегистрироваться</button>
+        </form>
+        <p style="margin-top:16px;font-size:14px;text-align:center;">
+            Уже есть аккаунт? <a href="{% url 'login' %}">Войти</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

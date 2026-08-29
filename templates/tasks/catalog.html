@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load level_tags %}
+
+{% block title %}Каталог задач — uStudy Practice{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <div class="hero-content">
+        <span class="hero-badge">⚡ Backend-практика</span>
+        <h1 class="hero-title">Прокачай свои навыки <span class="grad">кода</span></h1>
+        <p class="hero-sub">Решай задачи по Python, SQL и транзакциям. Получай монеты, открывай уровни и стань лучшим в рейтинге.</p>
+        <div class="hero-stats">
+            <div class="hero-stat"><strong>{{ total_tasks }}</strong> задач</div>
+            <div class="hero-stat"><strong>{{ total_topics }}</strong> темы</div>
+            <div class="hero-stat"><strong>5</strong> уровней</div>
+        </div>
+    </div>
+</div>
+
+{% for topic in topics %}
+    <section class="topic accordion {% if forloop.first %}open{% endif %}">
+        <button class="topic-header" type="button" onclick="toggleTopic(this)">
+            <span class="topic-header-left">
+                <span class="topic-arrow">▸</span>
+                <span class="topic-name">{{ topic.name }}</span>
+            </span>
+            <span class="topic-count">{{ topic.tasks.count }} задач</span>
+        </button>
+        <div class="topic-body">
+            <div class="topic-body-inner">
+                {% regroup topic.tasks.all by required_level as level_groups %}
+                {% for group in level_groups %}
+                    <div class="level-block">
+                        <div class="level-head">
+                            <span class="level-title">{{ group.grouper|level_name }}</span>
+                        </div>
+                        <div class="task-list">
+                            {% for task in group.list %}
+                                {% if user.is_authenticated and task.required_level > user_level_index|add:1 %}
+                                    <div class="card task-item task-locked">
+                                        <span class="task-title">🔒 {{ task.title }}</span>
+                                        <span class="task-meta">
+                                            <span class="badge badge-{{ task.difficulty }}">{{ task.get_difficulty_display }}</span>
+                                            <span class="badge badge-level">Уровень {{ task.required_level }}</span>
+                                        </span>
+                                    </div>
+                                {% else %}
+                                    <a class="card task-item" href="{% url 'task_detail' task.slug %}">
+                                        <span class="task-title">{{ task.title }}{% if task.is_level_test %} 🏁{% endif %}</span>
+                                        <span class="task-meta">
+                                            <span class="badge badge-{{ task.difficulty }}">{{ task.get_difficulty_display }}</span>
+                                            {% if task.is_level_test %}
+                                                <span class="badge badge-test">Тест уровня</span>
+                                            {% endif %}
+                                            {% if task.id in solved_tasks %}
+                                                <span class="badge badge-solved">Решено</span>
+                                            {% endif %}
+                                        </span>
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="page-sub">Задач пока нет.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+{% empty %}
+    <div class="card card-pad">
+        <p>Темы ещё не добавлены. Загляни в админку, чтобы создать первые задачи.</p>
+    </div>
+{% endfor %}
+
+<script>
+    function toggleTopic(header) {
+        const topic = header.parentElement;
+        const isOpen = topic.classList.contains('open');
+        if (isOpen) {
+            topic.classList.remove('open');
+        } else {
+            topic.classList.add('open');
+        }
+    }
+</script>
+{% endblock %}

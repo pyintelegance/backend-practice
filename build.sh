@@ -7,6 +7,28 @@ pip install -r requirements.txt
 echo "==> Collect static"
 python manage.py collectstatic --noinput
 
+echo "==> Ensure Django DB exists (separate logical DB in the shared Postgres instance)"
+if [ -n "$DATABASE_URL" ]; then
+  python - <<'PY'
+import os, psycopg, urllib.parse
+url = os.environ["DATABASE_URL"]
+u = urllib.parse.urlparse(url)
+dbname = u.path.lstrip("/") or "ustudy_practice"
+admin = url.replace(f"/{dbname}", "/postgres")
+try:
+    with psycopg.connect(admin, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
+            if cur.fetchone() is None:
+                cur.execute(f'CREATE DATABASE "{dbname}"')
+                print(f"created database {dbname}")
+            else:
+                print(f"database {dbname} already exists (skipped)")
+except Exception as e:
+    print("django db ensure skipped:", e)
+PY
+fi
+
 echo "==> Migrate Django DB"
 python manage.py migrate --noinput
 

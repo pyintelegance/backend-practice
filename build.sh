@@ -35,6 +35,9 @@ python manage.py migrate --noinput
 echo "==> Seed tasks (demo + real workbook)"
 python manage.py seed_data || echo "seed_data skipped/failed (non-fatal)"
 
+echo "==> Seed frontend tasks (HTML, CSS, JavaScript)"
+python manage.py seed_frontend || echo "seed_frontend skipped/failed (non-fatal)"
+
 echo "==> Ensure dvdrental DB exists for student tasks"
 # DVDRENTAL_DATABASE_URL указывает на ту же СУБД, но отдельную БД.
 # Если БД dvdrental ещё нет — создаём и заливаем дамп.

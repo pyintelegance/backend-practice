@@ -94,8 +94,8 @@
             {% endif %}
             <div class="card card-pad">
                 <div class="form-group">
-                    <label for="code">Решение {% if task.task_type == 'sql' %}— SQL-запрос{% else %}— Python-код{% endif %}</label>
-                    <textarea id="code" name="code" class="code-editor" placeholder="{% if task.task_type == 'sql' %}SELECT ...{% else %}def solve():&#10;    ...{% endif %}">{{ last_code }}</textarea>
+                    <label for="code">Решение — {% if task.task_type == 'sql' %}SQL-запрос{% elif task.task_type == 'html' %}HTML-разметка{% elif task.task_type == 'css' %}CSS-код{% elif task.task_type == 'javascript' %}JavaScript-код{% else %}Python-код{% endif %}</label>
+                    <textarea id="code" name="code" class="code-editor" placeholder="{% if task.task_type == 'sql' %}SELECT ...{% elif task.task_type == 'html' %}&lt;div&gt;...&lt;/div&gt;{% elif task.task_type == 'css' %;.class { ... }{% elif task.task_type == 'javascript' %}console.log("...");{% else %}def solve():&#10;    ...{% endif %}">{{ last_code }}</textarea>
                 </div>
                 <div style="display:flex;gap:10px;margin-top:14px;">
                     <button class="btn btn-outline" type="button" id="btn-debug">🐞 Проверить</button>
@@ -155,15 +155,29 @@
 <script src="{% static 'vendor/codemirror/lib/codemirror.min.js' %}"></script>
 <script src="{% static 'vendor/codemirror/mode/python/python.min.js' %}"></script>
 <script src="{% static 'vendor/codemirror/mode/sql/sql.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/mode/xml/xml.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/mode/css/css.min.js' %}"></script>
+<script src="{% static 'vendor/codemirror/mode/javascript/javascript.min.js' %}"></script>
 <script src="{% static 'vendor/codemirror/addon/hint/show-hint.min.js' %}"></script>
 <script src="{% static 'vendor/codemirror/addon/hint/sql-hint.min.js' %}"></script>
 <script src="{% static 'vendor/codemirror/addon/hint/python-keywords-hint.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/html-hint.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/css-hint.js' %}"></script>
+<script src="{% static 'vendor/codemirror/addon/hint/javascript-hint.js' %}"></script>
 <script>
     (function () {
         const textarea = document.getElementById('code');
         if (!textarea) return; // задача заблокирована — редактор не нужен
-        const isSql = '{{ task.task_type }}' === 'sql';
-        const mode = isSql ? 'text/x-sql' : 'text/x-python';
+        const taskType = '{{ task.task_type }}';
+        const isSql = taskType === 'sql';
+        const isHtml = taskType === 'html';
+        const isCss = taskType === 'css';
+        const isJs = taskType === 'javascript';
+        let mode = 'text/x-python';
+        if (isSql) mode = 'text/x-sql';
+        else if (isHtml) mode = 'text/html';
+        else if (isCss) mode = 'text/css';
+        else if (isJs) mode = 'text/javascript';
         const lastCode = '{{ last_code|escapejs }}';
 
         const editor = CodeMirror.fromTextArea(textarea, {

@@ -210,11 +210,138 @@ def check_python(code, task):
     ), {'student': student_out or '(пусто)', 'expected': expected_out}
 
 
+def check_html(code, task):
+    """Проверяет HTML-код ученика: наличие тегов, атрибутов, структуры."""
+    from html.parser import HTMLParser
+
+    class TagCollector(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.tags = []
+            self.attrs = {}
+
+        def handle_starttag(self, tag, attrs):
+            self.tags.append(tag)
+            self.attrs[tag] = dict(attrs)
+
+    try:
+        parser = TagCollector()
+        parser.feed(code)
+    except Exception as e:
+        return False, f'Ошибка парсинга HTML:\n{e}', {'student': '', 'expected': '', 'error': str(e)}
+
+    # Проверка обязательных тегов
+    if task.required_tokens:
+        tokens = [t.strip().lower() for t in task.required_tokens.split(',') if t.strip()]
+        missing = []
+        for t in tokens:
+            if t not in parser.tags:
+                missing.append(t)
+        if missing:
+            return False, (
+                f'В HTML отсутствуют теги: {", ".join(missing)}.\n'
+                f'Найденные теги: {", ".join(set(parser.tags)) or "(нет)"}'
+            ), {'student': ', '.join(set(parser.tags)), 'expected': ', '.join(tokens), 'error': 'missing_tags'}
+
+    # Сравнение с эталоном (solution содержит ожидаемый HTML)
+    expected = textwrap.dedent(task.solution).strip()
+    if _norm_key(code.strip()) == _norm_key(expected):
+        return True, 'Правильно! HTML-разметка верная.', {'student': code[:200], 'expected': expected[:200]}
+
+    return False, 'HTML-разметка не совпадает с ожидаемой.', {'student': code[:200], 'expected': expected[:200]}
+
+
+def check_css(code, task):
+    """Проверяет CSS-код: наличие селекторов и свойств."""
+    import re as css_re
+
+    # Извлекаем все свойства из CSS
+    properties = css_re.findall(r'[\w-]+\s*:', code)
+    properties = [p.strip().rstrip(':') for p in properties]
+
+    # Проверка обязательных свойств
+    if task.required_tokens:
+        tokens = [t.strip().lower() for t in task.required_tokens.split(',') if t.strip()]
+        missing = []
+        for t in tokens:
+            if t.lower() not in [p.lower() for p in properties]:
+                missing.append(t)
+        if missing:
+            return False, (
+                f'В CSS отсутствуют свойства: {", ".join(missing)}.\n'
+                f'Найденные свойства: {", ".join(properties) or "(нет)"}'
+            ), {'student': ', '.join(properties), 'expected': ', '.join(tokens), 'error': 'missing_properties'}
+
+    # Сравнение с эталоном
+    expected = textwrap.dedent(task.solution).strip()
+    if _norm_key(code.strip()) == _norm_key(expected):
+        return True, 'Правильно! CSS-код верный.', {'student': code[:200], 'expected': expected[:200]}
+
+    return False, 'CSS-код не совпадает с ожидаемым.', {'student': code[:200], 'expected': expected[:200]}
+
+
+def check_javascript(code, task):
+    """Запускает JavaScript-код в Node.js и сравнивает stdout с эталоном."""
+    import subprocess
+    import tempfile
+    import os
+
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False, encoding='utf-8') as f:
+            f.write(code)
+            tmp_path = f.name
+
+        result = subprocess.run(
+            ['node', tmp_path],
+            capture_output=True, text=True, timeout=5
+        )
+        os.unlink(tmp_path)
+
+        if result.returncode != 0:
+            msg = result.stderr.strip() or '(без сообщения)'
+            return False, f'Ошибка выполнения JavaScript:\n{msg}', {'student': '', 'expected': '', 'error': msg}
+
+        student_out = result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        return False, 'Превышено время выполнения (5 сек).', {'student': '', 'expected': '', 'error': 'timeout'}
+    except Exception as e:
+        return False, f'Непредвиденная ошибка:\n{e}', {'student': '', 'expected': '', 'error': str(e)}
+
+    # Проверка обязательных элементов в коде
+    if task.required_tokens:
+        tokens = [t.strip() for t in task.required_tokens.split(',') if t.strip()]
+        missing = []
+        for t in tokens:
+            if t not in code:
+                missing.append(t)
+        if missing:
+            return False, (
+                f'В коде должно использоваться: {", ".join(missing)}.'
+            ), {'student': '', 'expected': '', 'error': 'missing_tokens'}
+
+    # Сравнение вывода
+    expected = textwrap.dedent(task.solution).strip()
+    if _norm_key(student_out) == _norm_key(expected):
+        return True, 'Правильно! Вывод совпадает.', {'student': student_out, 'expected': expected}
+
+    return False, (
+        f'Вывод не совпадает.\n\n'
+        f'Твой вывод:\n{student_out or "(пусто)"}\n\n'
+        f'Ожидалось:\n{expected}'
+    ), {'student': student_out or '(пусто)', 'expected': expected}
+
+
 def check(task, code):
     """Точка входа: возвращает (passed: bool, feedback: str, result: dict)."""
     start = time.time()
     if task.task_type == Task.Type.SQL:
         passed, feedback, result = check_sql(code, task)
+    elif task.task_type == Task.Type.HTML:
+        passed, feedback, result = check_html(code, task)
+    elif task.task_type == Task.Type.CSS:
+        passed, feedback, result = check_css(code, task)
+    elif task.task_type == Task.Type.JAVASCRIPT:
+        passed, feedback, result = check_javascript(code, task)
     else:
         passed, feedback, result = check_python(code, task)
     elapsed = time.time() - start

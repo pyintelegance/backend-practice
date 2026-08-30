@@ -23,6 +23,9 @@ class Task(models.Model):
     class Type(models.TextChoices):
         SQL = 'sql', 'SQL'
         PYTHON = 'python', 'Python'
+        HTML = 'html', 'HTML'
+        CSS = 'css', 'CSS'
+        JAVASCRIPT = 'javascript', 'JavaScript'
 
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='tasks')
     title = models.CharField(max_length=200)
